@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% load reaper_tags %}
+{% block title %}Resurrection Queue · Repo Reaper{% endblock %}
+{% block breadcrumb %}Resurrection Queue{% endblock %}
+{% block content %}
+  <div class="page-heading">
+    <div>
+      <div class="eyebrow">ONE COMEBACK AT A TIME</div>
+      <h1>
+        Resurrection Queue<span class="accent">.</span>
+      </h1>
+      <p>A little intention turns “someday” into something shipped.</p>
+    </div>
+    <a class="button secondary" href="{% url 'graveyard' %}">Find your next project ↗</a>
+  </div>
+  {% include "reaper/filters.html" %}
+  <div class="queue-list">
+    {% for row in rows %}
+      <article class="panel queue-card">
+        <div class="queue-rank">{{ forloop.counter|stringformat:'02d' }}</div>
+        <div class="queue-body">
+          <div class="card-topline">
+            <a class="card-title" href="{% url 'repo_detail' row.repo.id %}">{{ row.repo.name }}</a><span class="badge {{ row.a.portfolio_value|status_class }}">{{ row.a.portfolio_value|default:'Unknown' }} value</span>
+          </div>
+          <p>{{ row.a.suggested_next_step|default:'Complete a scan to identify your next step.' }}</p>
+          <div class="card-meta">
+            <span>{{ row.a.resurrection_effort|default:'Unknown' }} effort</span><span>Updated {{ row.repo.pushed_at|date:'M j, Y'|default:'—' }}</span>
+          </div>
+          <form class="queue-form"
+                method="post"
+                action="{% url 'queue_update' row.repo.id %}">
+            {% csrf_token %}
+            <label>Priority<select name="priority" aria-label="Priority"><option {% if row.queue.priority == 'Next' %}selected{% endif %}>Next</option><option {% if row.queue.priority == 'Soon' %}selected{% endif %}>Soon</option><option {% if row.queue.priority == 'Someday' %}selected{% endif %}>Someday</option></select></label><label class="grow">Notes<input name="notes"
+       maxlength="2000"
+       value="{{ row.queue.notes }}"
+       placeholder="Leave a note for future you"></label><button class="button secondary compact">Save</button><button class="text-button danger" name="action" value="remove">Remove</button>
+          </form>
+        </div>
+      </article>
+    {% empty %}
+      <div class="empty-state panel">
+        <span class="large-symbol">↟</span>
+        <h2>Make your first comeback plan.</h2>
+        <p>Add a promising repository from its audit or the Graveyard. Give it a priority. Start small.</p>
+        <a class="button primary" href="{% url 'graveyard' %}">Explore the Graveyard ↗</a>
+      </div>
+    {% endfor %}
+  </div>
+{% endblock %}

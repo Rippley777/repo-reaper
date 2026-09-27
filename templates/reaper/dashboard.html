@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+{% load reaper_tags %}
+{% block title %}Overview · Repo Reaper{% endblock %}
+{% block content %}
+  <div class="page-heading">
+    <div>
+      <div class="eyebrow">A SECOND LOOK. A FRESH START.</div>
+      <h1>
+        Your project landscape<span class="accent">.</span>
+      </h1>
+      <p>The shipped, the shelved, and the still full of potential.</p>
+    </div>
+    <a class="button primary" href="{% url 'repositories' %}"><span>＋</span> Scan repositories</a>
+  </div>
+  <div class="stats-grid">
+    <article class="stat">
+      <div>
+        Repositories analyzed <span>▦</span>
+      </div>
+      <strong>{{ total|stringformat:'02d' }}</strong><small>Your engineering history</small>
+    </article>
+    <article class="stat">
+      <div>
+        Shipped / nearly there <span>↗</span>
+      </div>
+      <strong>{{ shipped|stringformat:'02d' }}<span class="stat-divider">/</span>{{ nearly|stringformat:'02d' }}</strong><small>Production / nearly complete</small>
+    </article>
+    <article class="stat">
+      <div>
+        High portfolio value <span>✧</span>
+      </div>
+      <strong class="accent">{{ high|stringformat:'02d' }}</strong><small>Work worth showing the world</small>
+    </article>
+    <article class="stat">
+      <div>
+        Quick resurrections <span>ϟ</span>
+      </div>
+      <strong>{{ quick|stringformat:'02d' }}</strong><small>Tiny or small effort to revive</small>
+    </article>
+  </div>
+  <a class="graveyard-banner" href="{% url 'graveyard' %}">
+    <div class="mini-tomb" aria-hidden="true">+</div>
+    <div>
+      <div class="eyebrow">THE GRAVEYARD</div>
+      <h2>Not every abandoned project is a dead end.</h2>
+      <p>
+        {{ abandoned }} abandoned project{{ abandoned|pluralize }}. Discover which ideas deserve another chance.
+      </p>
+    </div>
+    <span class="banner-link">Explore the graveyard ↗</span></a>
+  <div class="section-heading">
+    <h2>
+      Repository inventory <span class="count">{{ total }}</span>
+    </h2>
+    <span class="subtle">AI inference, grounded in repository evidence</span>
+  </div>
+  {% include "reaper/filters.html" %}
+  <div class="table-wrap">
+    <table class="repo-table">
+      <thead>
+        <tr>
+          <th scope="col">Repository / description</th>
+          <th scope="col">Status</th>
+          <th scope="col">Last updated</th>
+          <th scope="col">Languages</th>
+          <th scope="col">Frameworks</th>
+          <th scope="col">Original purpose</th>
+          <th scope="col">Effort</th>
+          <th scope="col">Portfolio</th>
+          <th scope="col">Technical debt</th>
+          <th scope="col">Next step</th>
+          <th scope="col">Scanned</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in page %}
+          <tr>
+            <td class="repo-cell">
+              <a class="repo-name" href="{% url 'repo_detail' row.repo.id %}"><span class="repo-icon" aria-hidden="true">⌘</span>{{ row.repo.name }}</a><span class="repo-owner">{{ row.repo.owner }} · {% if row.repo.private %}Private{% else %}Public{% endif %}
+              {% if row.repo.archived %}· Archived{% endif %}
+              </span>
+              <p>{{ row.repo.description|default:'No repository description.'|truncatechars:85 }}</p>
+              <button class="expand-button"
+                      aria-expanded="false"
+                      aria-controls="details-{{ row.repo.id }}">＋ Expand audit</button>
+            </td>
+            <td>
+              {% if row.a %}
+                <span class="badge {{ row.a.project_status|status_class }}">{{ row.a.project_status }}</span>{% endif %}
+              {% if row.latest.status in active %}
+                <span class="job-status"
+                      data-scan-url="{% url 'scan_status' row.latest.id %}">{{ row.latest.get_status_display }}</span>{% elif row.latest.status == "failed" %}
+                <span class="badge red"
+                      title="{{ row.latest.error }}">Scan failed</span>{% elif not row.a %}
+                <span class="subtle">Not scanned</span>{% endif %}
+            </td>
+            <td>{{ row.repo.pushed_at|date:'M j, Y'|default:'—' }}</td>
+            <td>
+              {% for lang in row.a.detected_languages %}
+                <span class="stack-tag">{{ lang }}</span>{% empty %}{{ row.repo.language|default:'—' }}{% endfor %}
+            </td>
+            <td>
+              {% for framework in row.a.detected_frameworks %}
+                <span class="stack-tag">{{ framework }}</span>{% empty %}—{% endfor %}
+            </td>
+            <td class="prose-cell">
+              {{ row.a.original_purpose|default:'Awaiting analysis'|truncatechars:130 }}
+            </td>
+            <td>
+              <span class="badge {{ row.a.resurrection_effort|status_class }}">{{ row.a.resurrection_effort|default:'—' }}</span>
+            </td>
+            <td>
+              <span class="value-indicator {{ row.a.portfolio_value|status_class }}">✧ {{ row.a.portfolio_value|default:'—' }}</span>
+            </td>
+            <td class="prose-cell">
+              {{ row.a.technical_debt.0|default:'No findings yet'|truncatechars:130 }}
+            </td>
+            <td class="prose-cell">{{ row.a.suggested_next_step|default:'Complete a scan' }}</td>
+            <td>
+              {{ row.scan.completed_at|date:'M j, Y'|default:'—' }}{% if row.scan.cached %}
+              <small class="subtle">Cached analysis</small>{% endif %}
+          </td>
+        </tr>
+        <tr id="details-{{ row.repo.id }}" hidden>
+          <td colspan="11">
+            <div class="expanded-audit">
+              {% include "reaper/audit.html" with a=row.a scan=row.scan %}
+              <a class="text-link"
+                 href="{% url 'repo_detail' row.repo.id %}">Full report & scan history ↗</a>
+            </div>
+          </td>
+        </tr>
+{% empty %}
+  <tr>
+    <td colspan="11">
+      <div class="empty-state">
+        <span class="large-symbol">♧</span>
+        <h2>
+          {% if total %}No projects match these filters.{% else %}Your next great project is waiting.{% endif %}
+        </h2>
+        <p>
+          {% if total %}Try another search or reset the filters.{% else %}Connect the dots in your GitHub history. Choose a few repositories to start your first audit.{% endif %}
+        </p>
+        <a class="button primary" href="{% url 'repositories' %}">Choose repositories ↗</a>
+      </div>
+    </td>
+  </tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+{% if page.paginator.num_pages > 1 %}
+  <div class="pagination">
+    {% if page.has_previous %}
+      <a href="?{% querystring page=page.previous_page_number %}">← Previous</a>{% endif %}
+    <span>Page {{ page.number }} of {{ page.paginator.num_pages }}</span>{% if page.has_next %}
+    <a href="?{% querystring page=page.next_page_number %}">Next →</a>{% endif %}
+</div>
+{% endif %}
+<div class="stack-summary">
+  <div>
+    <span class="eyebrow">LANGUAGES IN YOUR TOOLBOX</span>
+    <p>
+      {% for name,count in top_languages %}
+        <span class="stack-tag">{{ name }} <b>{{ count }}</b></span>{% empty %}
+        <span class="subtle">Your stack will appear after your first scan.</span>{% endfor %}
+    </p>
+  </div>
+  <div>
+    <span class="eyebrow">MOST USED FRAMEWORKS</span>
+    <p>
+      {% for name,count in top_frameworks %}
+        <span class="stack-tag">{{ name }} <b>{{ count }}</b></span>{% empty %}
+        <span class="subtle">Waiting for a little evidence.</span>{% endfor %}
+    </p>
+  </div>
+</div>
+{% endblock %}

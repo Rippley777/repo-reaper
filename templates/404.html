@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block content %}
+  <div class="empty-state">
+    <span class="large-symbol">♧</span>
+    <h1>This plot is empty.</h1>
+    <p>The page is unavailable or does not belong to your workspace.</p>
+    <a class="button primary" href="{% url 'dashboard' %}">Back to your workspace</a>
+  </div>
+{% endblock %}

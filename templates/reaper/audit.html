@@ -1,0 +1,95 @@
+{% if a %}
+  <div class="audit-meta">
+    <span class="badge purple">AI INFERENCE</span><span>{{ a.confidence }} confidence · Verify recommendations before acting</span>
+  </div>
+  <div class="audit-grid">
+    <section>
+      <h3>What Was This?</h3>
+      <p>{{ a.summary }}</p>
+      <p>
+        <strong>Original purpose:</strong> {{ a.original_purpose }}
+      </p>
+    </section>
+    <section>
+      <h3>Current Condition</h3>
+      <p>{{ a.current_condition }}</p>
+      <p>
+        <strong>Deployment:</strong> {{ a.deployment_readiness }}
+      </p>
+    </section>
+    <section>
+      <h3>Technical Debt</h3>
+      <ul>
+        {% for item in a.technical_debt %}
+          <li>{{ item }}</li>
+        {% empty %}
+          <li>No specific debt established from the available evidence.</li>
+        {% endfor %}
+      </ul>
+    </section>
+    <section>
+      <h3>Resurrection Plan</h3>
+      <ol>
+        {% for item in a.resurrection_plan %}
+          <li>{{ item }}</li>
+        {% endfor %}
+      </ol>
+      <p>
+        <strong>{{ a.resurrection_effort }} effort:</strong> {{ a.effort_explanation }}
+      </p>
+    </section>
+    <section>
+      <h3>Portfolio Angle</h3>
+      <p>{{ a.portfolio_angle }}</p>
+      <p>
+        <strong>Complexity:</strong> {{ a.complexity }}
+      </p>
+      <p>
+        <strong>Architecture:</strong> {{ a.architecture }}
+      </p>
+    </section>
+    <section>
+      <h3>Evidence</h3>
+      <span class="fact-label">REPOSITORY FACTS · COLLECTED BY THE SCANNER</span>
+      <ul>
+        {% for item in a.evidence %}
+          <li>
+            <code>{{ item }}</code>
+          </li>
+        {% endfor %}
+      </ul>
+      <p>
+        Commit <code>{{ scan.commit_sha|truncatechars:15|default:'Empty repository' }}</code>
+      </p>
+    </section>
+    <section>
+      <h3>Visible Security Concerns</h3>
+      <ul>
+        {% for item in a.security_concerns %}
+          <li>{{ item }}</li>
+        {% empty %}
+          <li>No concerns established from this sample. This is not a security audit.</li>
+        {% endfor %}
+      </ul>
+      <h3>Worth Preserving</h3>
+      <ul>
+        {% for item in a.reusable_code %}
+          <li>{{ item }}</li>
+        {% endfor %}
+      </ul>
+    </section>
+    <section>
+      <h3>What We Don’t Know</h3>
+      <ul>
+        {% for item in a.uncertainty %}
+          <li>{{ item }}</li>
+        {% endfor %}
+        {% for item in scan.evidence.limitations %}
+          <li>{{ item }}</li>
+        {% endfor %}
+      </ul>
+    </section>
+  </div>
+{% else %}
+  <p class="subtle">The audit will appear when the scan completes.</p>
+{% endif %}

@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% block title %}Settings · Repo Reaper{% endblock %}
+{% block breadcrumb %}Settings & privacy{% endblock %}
+{% block content %}
+  <div class="page-heading">
+    <div>
+      <div class="eyebrow">YOUR WORKSPACE. YOUR RULES.</div>
+      <h1>
+        Settings & privacy<span class="accent">.</span>
+      </h1>
+      <p>Control your connection, analysis preferences, and data.</p>
+    </div>
+  </div>
+  <div class="settings-layout">
+    <div>
+      <section class="panel settings-panel">
+        <div class="section-heading">
+          <h2>GitHub connection</h2>
+          <span class="badge {% if connected %}green{% else %}muted{% endif %}">{% if connected %}Connected{% else %}Disconnected{% endif %}
+          </span>
+        </div>
+        <p>
+          Signed in as <a href="{{ user.profile_url }}"
+    target="_blank"
+    rel="noopener noreferrer">@{{ user.github_username }}</a>. Access is limited to what you and the read-only GitHub App can access.
+        </p>
+        <div class="actions">
+          <form method="post" action="{% url 'oauth_start' %}">
+            {% csrf_token %}
+            <button class="button secondary">{% if connected %}Reconnect{% else %}Connect{% endif %} GitHub ↗</button>
+          </form>
+          {% if github_install_url %}
+            <a class="text-link"
+               href="{{ github_install_url }}"
+               target="_blank"
+               rel="noopener noreferrer">Manage repository permissions ↗</a>{% endif %}
+        </div>
+      </section>
+      <section class="panel settings-panel">
+        <div class="section-heading">
+          <h2>Your OpenAI API key</h2>
+          <span class="badge {% if ai_key_configured %}green{% else %}muted{% endif %}">{% if ai_key_configured %}Configured{% else %}Required{% endif %}</span>
+        </div>
+        <p>
+          Your key is encrypted at rest and used only by the server for repository analyses you request. OpenAI bills your own project directly.
+        </p>
+        <p class="subtle">
+          Use a dedicated project key with a spending limit and expiration. The app never displays the full key or sends it to the browser after saving.
+        </p>
+        {% if ai_key_configured %}
+          <p>Saved key: <code>{{ ai_key_hint }}</code></p>
+          <form action="{% url 'delete_ai_key' %}" method="post">
+            {% csrf_token %}
+            <button class="button destructive">Remove OpenAI key</button>
+          </form>
+          <details class="privacy-action">
+            <summary>Replace key</summary>
+        {% endif %}
+        <form action="{% url 'save_ai_key' %}" method="post">
+          {% csrf_token %}
+          <label>
+            OpenAI API key<input type="password"
+       name="api_key"
+       minlength="20"
+       maxlength="512"
+       required
+       autocomplete="new-password"
+       spellcheck="false">
+          </label>
+          <button class="button primary">{% if ai_key_configured %}Replace key{% else %}Save key{% endif %}</button>
+        </form>
+        {% if ai_key_configured %}</details>{% endif %}
+      </section>
+      <section class="panel settings-panel">
+        <h2>Scanning & AI preferences</h2>
+        <form action="{% url 'save_settings' %}" method="post">
+          {% csrf_token %}
+          <label class="checkbox-label"><input type="checkbox"
+       name="ai_consent"
+       {% if user.ai_consent %}checked{% endif %}><span><strong>Allow AI analysis of repositories I select</strong><small>I understand that repository metadata, commit messages, and selected file excerpts are sent to OpenAI. Secret redaction is best-effort. I have permission to share this content with the provider.</small></span></label><label class="checkbox-label"><input type="checkbox"
+       name="allow_private"
+       {% if user.allow_private %}checked{% endif %}><span><strong>Include private repositories</strong><small>Requires a GitHub App installation granting read access to selected private repositories. Private evidence is sent to AI only when I select a repository for scanning. Disabling this stops future private scans; delete stored analyses below to remove existing data.</small></span></label><label>Analysis model<select name="model">{% for model in models %}
+            <option {% if user.ai_model == model %}selected{% endif %}>{{ model }}</option>{% endfor %}
+          </select>
+        </label>
+        <p class="subtle">
+          Up to {{ daily_limit }} scans per day. Identical evidence reuses previous analysis. Input and output token counts appear in scan history.
+        </p>
+        <button class="button primary">Save preferences</button>
+      </form>
+    </section>
+    <section class="panel settings-panel danger-panel">
+      <span class="eyebrow">DATA CONTROLS</span>
+      <h2>Leave no trace.</h2>
+      <p>These actions affect your workspace only. Your GitHub repositories are never modified.</p>
+      <details class="privacy-action">
+        <summary>Delete all repository analyses</summary>
+        <p>
+          Deletes imported repositories, analyses, history, queue items, and cached evidence. Type <code>DELETE ANALYSES</code>.
+        </p>
+        <form action="{% url 'privacy_action' %}" method="post">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="delete_all"><input name="confirmation"
+       placeholder="DELETE ANALYSES"
+       aria-label="Confirm deleting all analyses"
+       required
+       autocomplete="off"><button class="button destructive">Delete all analyses</button>
+        </form>
+      </details>
+      <details class="privacy-action">
+        <summary>Disconnect GitHub</summary>
+        <p>
+          Removes local credentials, cancels scans, clears caches, and attempts to revoke the GitHub authorization. Existing analyses remain available. Type <code>DISCONNECT</code>.
+        </p>
+        <form action="{% url 'privacy_action' %}" method="post">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="disconnect"><input name="confirmation"
+       placeholder="DISCONNECT"
+       aria-label="Confirm GitHub disconnection"
+       required
+       autocomplete="off"><button class="button destructive">Disconnect</button>
+        </form>
+      </details>
+      <details class="privacy-action">
+        <summary>Delete my account</summary>
+        <p>
+          Permanently deletes your profile and all associated workspace records. Type <code>DELETE ACCOUNT</code>.
+        </p>
+        <form action="{% url 'privacy_action' %}" method="post">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="delete_account"><input name="confirmation"
+       placeholder="DELETE ACCOUNT"
+       aria-label="Confirm account deletion"
+       required
+       autocomplete="off"><button class="button destructive">Delete account</button>
+        </form>
+      </details>
+    </section>
+  </div>
+  <aside class="panel side-panel privacy-explainer">
+    <span class="large-symbol">◈</span>
+    <h3>
+      Private by default.
+      <br>
+      Private by design.
+    </h3>
+    <h4>WHAT WE STORE</h4>
+    <p>
+      Your GitHub profile, encrypted GitHub and OpenAI credentials, repository metadata, evidence inventory, AI results, scan history, and queue preferences. API caches are encrypted and expire.
+    </p>
+    <h4>WHAT THE MODEL SEES</h4>
+    <p>
+      A limited sample of metadata, manifests, docs, and source excerpts. Requests disable response storage, but provider abuse-monitoring retention may still apply. Source excerpts are not retained in scan records.
+    </p>
+    <h4>WHAT STAYS YOURS</h4>
+    <p>
+      No public profiles or publishing routes exist. No analysis is public, including analyses of public repositories.
+    </p>
+    <h4>WHEN YOU DELETE</h4>
+    <p>
+      Live records are removed immediately. An in-flight provider request cannot be recalled. Backups expire under the operator’s retention policy; provider retention is separate.
+    </p>
+  </aside>
+</div>
+{% endblock %}

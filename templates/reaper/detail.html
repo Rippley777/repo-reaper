@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% load reaper_tags %}
+{% block title %}{{ repo.name }} · Repo Reaper{% endblock %}
+{% block breadcrumb %}Repositories <span>/</span> {{ repo.name }}{% endblock %}
+{% block content %}
+  <a class="text-link" href="{% url 'dashboard' %}">← Back to inventory</a>
+  <div class="page-heading">
+    <div>
+      <div class="eyebrow">
+        {{ repo.owner }} / {% if repo.private %}PRIVATE{% else %}PUBLIC{% endif %}
+        {% if repo.archived %}/ ARCHIVED{% endif %}
+      </div>
+      <h1>
+        {{ repo.name }}<span class="accent">.</span>
+      </h1>
+      <p>{{ repo.description|default:'No description supplied.' }}</p>
+    </div>
+    <div class="actions">
+      <a class="button secondary"
+         href="{{ repo.github_url }}"
+         target="_blank"
+         rel="noopener noreferrer">View on GitHub ↗</a>
+      <form method="post" action="{% url 'rescan' repo.id %}">
+        {% csrf_token %}
+        <button class="button primary">↻ Rescan</button>
+      </form>
+    </div>
+  </div>
+  {% if latest.status in active %}
+    <div class="message">
+      <span class="job-status" data-scan-url="{% url 'scan_status' latest.id %}">{{ latest.get_status_display }}</span> · Your scan is running in the background. You can leave this page.
+    </div>
+  {% elif latest.status == "failed" %}
+    <div class="message error">{{ latest.error }}</div>
+  {% endif %}
+  <div class="detail-layout">
+    <div>
+      <div class="panel detail-audit">
+        <div class="section-heading">
+          <h2>Project audit</h2>
+          {% if scan %}
+            <span class="subtle">{{ scan.completed_at|date:'M j, Y · H:i' }} UTC</span>{% endif %}
+        </div>
+        {% if a %}
+          <div class="badges">
+            <span class="badge {{ a.project_status|status_class }}">{{ a.project_status }}</span><span class="badge {{ a.portfolio_value|status_class }}">{{ a.portfolio_value }} portfolio value</span><span class="badge purple">{{ a.resurrection_effort }} effort</span>{% for lang in a.detected_languages %}
+            <span class="stack-tag">{{ lang }}</span>{% endfor %}
+          {% for framework in a.detected_frameworks %}
+            <span class="stack-tag">{{ framework }}</span>{% endfor %}
+        </div>
+        <div class="next-step">
+          <span class="eyebrow">YOUR FIRST CONCRETE STEP</span>
+          <h3>{{ a.suggested_next_step }}</h3>
+        </div>
+{% endif %}
+{% include "reaper/audit.html" %}
+</div>
+<section class="panel history">
+  <h2>Scan history</h2>
+  <p class="subtle">Previous results stay private and available for comparison.</p>
+  {% for history in scans %}
+    <div class="history-row">
+      <div>
+        {% if history.status == "complete" %}
+          <a href="?scan={{ history.id }}">{{ history.created_at|date:'M j, Y · H:i' }} UTC ↗</a>{% else %}
+          <strong>{{ history.created_at|date:'M j, Y · H:i' }} UTC</strong>{% endif %}
+        <small>{{ history.get_status_display }} · {{ history.model }} · v{{ history.analysis_version }}{% if history.cached %} · Reused analysis{% endif %}
+        </small>
+      </div>
+      <span class="subtle">{{ history.input_tokens }} in / {{ history.output_tokens }} out</span>
+    </div>
+  {% endfor %}
+  {% if scan %}
+    <h3>Changes from the previous scan</h3>
+    <ul>
+      {% for change in scan.changes %}
+        <li>{{ change }}</li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+</section>
+</div>
+<aside>
+  <section class="panel side-panel">
+    <span class="eyebrow">REPOSITORY FACTS</span>
+    <h3>From GitHub</h3>
+    <dl>
+      <dt>Default branch</dt>
+      <dd>
+        {{ repo.default_branch }}
+      </dd>
+      <dt>Last push</dt>
+      <dd>
+        {{ repo.pushed_at|date:'M j, Y'|default:'No commits' }}
+      </dd>
+      <dt>Meaningful commit candidate</dt>
+      <dd>
+        {{ scan.evidence.latest_meaningful_commit_candidate|slice:':10'|default:'Not established' }}<small class="subtle"> · sampled-message heuristic</small>
+      </dd>
+      <dt>Stars</dt>
+      <dd>
+        {{ repo.stars }}
+      </dd>
+      <dt>Fork</dt>
+      <dd>
+        {{ repo.fork|yesno:'Yes,No' }}
+      </dd>
+      <dt>Topics</dt>
+      <dd>
+        {{ repo.metadata.topics|join:', '|default:'None' }}
+      </dd>
+      <dt>GitHub ID</dt>
+      <dd>
+        {{ repo.github_id }}
+      </dd>
+    </dl>
+  </section>
+  <section class="panel side-panel">
+    <span class="eyebrow">MAKE ROOM FOR A COMEBACK</span>
+    <h3>Resurrection Queue</h3>
+    <form action="{% url 'queue_update' repo.id %}" method="post">
+      {% csrf_token %}
+      <label>Priority<select name="priority" aria-label="Priority"><option {% if queue_item.priority == 'Next' %}selected{% endif %}>Next</option><option {% if not queue_item or queue_item.priority == 'Soon' %}selected{% endif %}>Soon</option><option {% if queue_item.priority == 'Someday' %}selected{% endif %}>Someday</option></select></label><label>Your notes<textarea name="notes" maxlength="2000" rows="4" placeholder="Why this one?">{{ queue_item.notes }}</textarea></label><button class="button primary full">{% if queue_item %}Update queue{% else %}Add to queue{% endif %} ↟</button>
+    </form>
+  </section>
+  <section class="side-panel">
+    <h3>Remove this audit</h3>
+    <p class="subtle">
+      Deletes analysis, history, and queue entry. The GitHub repository stays untouched.
+    </p>
+    <form method="post"
+          action="{% url 'delete_repository' repo.id %}"
+          data-confirm="Delete this repository’s analysis and scan history?">
+      {% csrf_token %}
+      <button class="text-button danger">Delete analysis</button>
+    </form>
+  </section>
+</aside>
+</div>
+{% endblock %}

@@ -1,0 +1,37 @@
+name: Validate
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: reaper
+          POSTGRES_USER: reaper
+          POSTGRES_PASSWORD: testing-only
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U reaper -d reaper"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      REAPER_DEBUG: 'true'
+      DATABASE_URL: postgresql://reaper:testing-only@localhost:5432/reaper
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: pip
+      - run: pip install -r requirements-dev.lock
+      - run: ruff check .
+      - run: djlint templates --check
+      - run: ruff format --check config reaper tests manage.py
+      - run: python manage.py makemigrations --check --dry-run
+      - run: python manage.py migrate --noinput
+      - run: python manage.py collectstatic --noinput
+      - run: pytest -q
+      - run: playwright install --with-deps chromium
+      - run: pytest -q -m browser

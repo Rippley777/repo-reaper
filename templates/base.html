@@ -1,0 +1,89 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="dark light"><meta name="description"
+      content="Rediscover the potential in your GitHub repositories. Private, evidence-based project audits."><title>{% block title %}Repo Reaper · Unearth your next great project{% endblock %}</title>
+    <link rel="icon" href="{% static 'favicon.svg' %}" type="image/svg+xml">
+    <link rel="stylesheet" href="{% static 'app.css' %}">
+    <script src="{% static 'app.js' %}" defer></script>
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+    {% if user.is_authenticated %}
+      <aside class="sidebar">
+        <a class="brand" href="{% url 'dashboard' %}"><span class="brand-mark">↟</span><span>repo<span class="brand-light">reaper</span><small>GOOD CODE NEVER DIES.</small></span></a>
+        <div class="workspace-label">YOUR WORKSPACE</div>
+        <nav aria-label="Main navigation">
+          <a href="{% url 'dashboard' %}"
+             {% if request.resolver_match.url_name == 'dashboard' %}aria-current="page"{% endif %}><span>▦</span>Overview</a><a href="{% url 'repositories' %}"
+   {% if request.resolver_match.url_name == 'repositories' %}aria-current="page"{% endif %}><span>⌘</span>Repositories</a><a href="{% url 'graveyard' %}"
+   {% if request.resolver_match.url_name == 'graveyard' %}aria-current="page"{% endif %}><span>♧</span>The Graveyard</a><a href="{% url 'queue' %}"
+   {% if request.resolver_match.url_name == 'queue' %}aria-current="page"{% endif %}><span>↟</span>Resurrection Queue</a>
+        </nav>
+        <div class="sidebar-bottom">
+          <div class="private-note">
+            <span class="live-dot"></span> Private by design<small>Your projects. Your second chances.</small>
+          </div>
+          <nav>
+            <a href="{% url 'settings' %}"
+               {% if request.resolver_match.url_name == 'settings' %}aria-current="page"{% endif %}><span>⚙</span>Settings & privacy</a>
+          </nav>
+          <div class="profile">
+            {% if user.avatar_url %}
+              <img src="{{ user.avatar_url }}" alt="" width="34" height="34">
+            {% else %}
+              <div class="avatar">{{ user.github_username|first|upper }}</div>
+            {% endif %}
+            <div>
+              <strong>{{ user.display_name|default:user.github_username }}</strong><a href="{{ user.profile_url }}"
+   target="_blank"
+   rel="noopener noreferrer">@{{ user.github_username }}</a>
+            </div>
+            <form action="{% url 'logout' %}" method="post">
+              {% csrf_token %}
+              <button class="icon-button" title="Sign out" aria-label="Sign out">↪</button>
+            </form>
+          </div>
+        </div>
+      </aside>
+    {% endif %}
+    <div class="{% if user.is_authenticated %}app-shell{% else %}public-shell{% endif %}">
+      <header class="topbar">
+        {% if user.is_authenticated %}
+          <div class="breadcrumb">
+            Workspace <span>/</span> {% block breadcrumb %}Overview{% endblock %}
+          </div>
+          <div class="topbar-right">
+            <span class="read-only">◈ &nbsp; Read-only access</span>
+            <form class="mobile-signout" method="post" action="{% url 'logout' %}">
+              {% csrf_token %}
+              <button class="text-button">Sign out</button>
+            </form>
+        {% else %}
+          <a class="brand"
+             href="{% url 'landing' %}"><span class="brand-mark">↟</span>repo<span class="brand-light">reaper</span></a>
+          <div class="topbar-right">
+            <a href="{% url 'login' %}">Sign in</a>{% endif %}
+          <button class="icon-button"
+                  id="theme-toggle"
+                  aria-label="Toggle light and dark mode"
+                  title="Toggle theme">◐</button>
+        </div>
+      </header>
+      <main id="main">
+        {% if messages %}
+          <div class="messages" aria-live="polite">
+            {% for message in messages %}
+              <div class="message {{ message.tags }}">{{ message }}</div>
+            {% endfor %}
+          </div>
+        {% endif %}
+        {% block content %}{% endblock %}
+      </main>
+      <footer>
+        <span>REPO REAPER</span><span>A little less abandoned. A little more ambitious.</span><span>Read-only. Always.</span>
+      </footer>
+    </div>
+  </body>
+</html>

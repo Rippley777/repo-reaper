@@ -1,0 +1,31 @@
+<form method="get" class="filters">
+  <div class="filter-main">
+    <label class="search"><span>⌕</span><input name="q"
+       value="{{ filters.q }}"
+       placeholder="Search your projects…"
+       aria-label="Search repositories"></label><label><span class="sr-only">Status</span><select name="status"><option value="">All statuses</option>{% for status in statuses %}
+      <option {% if filters.status == status %}selected{% endif %}>{{ status }}</option>{% endfor %}
+  </select></label><label><span class="sr-only">Language</span><select name="language"><option value="">All languages</option>{% for language in languages %}
+    <option {% if filters.language == language %}selected{% endif %}>{{ language }}</option>{% endfor %}
+</select></label><label><span class="sr-only">Sort by</span><select name="sort"><option value="updated" {% if filters.sort == 'updated' %}selected{% endif %}>Recently updated</option><option value="name" {% if filters.sort == 'name' %}selected{% endif %}>Repository name</option><option value="value" {% if filters.sort == 'value' %}selected{% endif %}>Portfolio value</option><option value="effort" {% if filters.sort == 'effort' %}selected{% endif %}>Resurrection effort</option><option value="scanned" {% if filters.sort == 'scanned' %}selected{% endif %}>Scan date</option><option value="status" {% if filters.sort == 'status' %}selected{% endif %}>Status</option><option value="priority"
+        {% if filters.sort == 'priority' %}selected{% endif %}>Queue priority</option></select></label><button class="button secondary compact">Apply</button>
+</div>
+<details class="advanced-filters">
+  <summary>
+    More filters <span>+</span>
+  </summary>
+  <div class="filter-extra">
+    <label>Framework<select name="framework"><option value="">All frameworks</option>{% for framework in frameworks %}
+      <option {% if filters.framework == framework %}selected{% endif %}>{{ framework }}</option>{% endfor %}
+  </select></label><label>Portfolio value<select name="value"><option value="">All values</option>{% for value in values %}
+    <option {% if filters.value == value %}selected{% endif %}>{{ value }}</option>{% endfor %}
+</select></label><label>Effort<select name="effort"><option value="">All efforts</option>{% for effort in efforts %}
+  <option {% if filters.effort == effort %}selected{% endif %}>{{ effort }}</option>{% endfor %}
+</select></label><label>Visibility<select name="visibility"><option value="">Public & private</option><option value="public"
+        {% if filters.visibility == 'public' %}selected{% endif %}>Public</option><option value="private"
+        {% if filters.visibility == 'private' %}selected{% endif %}>Private</option></select></label><label>Archived<select name="archived"><option value="">All repositories</option><option value="yes" {% if filters.archived == 'yes' %}selected{% endif %}>Archived</option><option value="no" {% if filters.archived == 'no' %}selected{% endif %}>Not archived</option></select></label><label>Direction<select name="direction"><option value="">Default</option><option value="asc" {% if filters.direction == 'asc' %}selected{% endif %}>Ascending</option><option value="desc" {% if filters.direction == 'desc' %}selected{% endif %}>Descending</option></select></label>
+</div>
+</details>
+{% if filters %}
+  <a class="reset-link" href="{{ request.path }}">Reset filters</a>{% endif %}
+</form>

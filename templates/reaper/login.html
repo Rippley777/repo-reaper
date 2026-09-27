@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Sign in · Repo Reaper{% endblock %}
+{% block content %}
+  <section class="login-card panel">
+    <span class="large-symbol">↟</span>
+    <div class="eyebrow">WELCOME TO YOUR PROJECT GRAVEYARD</div>
+    <h1>
+      Pick up where
+      <br>
+      you left off.
+    </h1>
+    <p>Sign in to find the potential hiding in your repositories.</p>
+    <form method="post" action="{% url 'oauth_start' %}">
+      {% csrf_token %}
+      <button class="button primary full">Continue with GitHub <span>↗</span></button>
+    </form>
+    {% if not github_configured %}
+      <div class="message">
+        GitHub sign-in is not configured yet. Follow the GitHub App setup in the project README.
+      </div>
+    {% endif %}
+    <div class="login-assurances">
+      <p>◈ &nbsp; Read-only repository permissions</p>
+      <p>◈ &nbsp; Private workspace, isolated to your account</p>
+      <p>◈ &nbsp; You choose what gets scanned</p>
+    </div>
+    <small>AI analysis is optional until you give consent in Settings. No repository is scanned automatically.</small>
+  </section>
+{% endblock %}

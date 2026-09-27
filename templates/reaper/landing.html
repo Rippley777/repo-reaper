@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block content %}
+  <section class="landing-hero">
+    <div class="eyebrow">
+      <span class="live-dot"></span> YOUR NEXT PROJECT MIGHT BE YOUR LAST ONE.
+    </div>
+    <h1>
+      Good code
+      <br>
+      deserves a <em>second life.</em>
+    </h1>
+    <p>
+      Somewhere in your GitHub account is an idea worth finishing.
+      <br>
+      Unearth forgotten projects, understand what’s left, and find your next great piece of work.
+    </p>
+    <div class="hero-actions">
+      <a class="button primary"
+         href="{% if user.is_authenticated %}
+{% url 'dashboard' %}
+{% else %}
+{% url 'login' %}
+{% endif %}">Explore your repositories <span>↗</span></a><span class="subtle">Read-only access. Nothing gets buried.</span>
+    </div>
+    <div class="grave-illustration" aria-hidden="true">
+      <div class="orb"></div>
+      <div class="tomb small">
+        <span>+</span><b>weekend-idea</b><small>“just one more feature”</small>
+      </div>
+      <div class="tomb main-tomb">
+        <span>↟</span><b>the-next-big-thing</b><small>NOT DEAD. JUST ON PAUSE.</small>
+        <div class="tomb-line"></div>
+      </div>
+      <div class="tomb small right">
+        <span>+</span><b>side-project-v2</b><small>gone, but not git-forgotten</small>
+      </div>
+      <div class="ground"></div>
+    </div>
+  </section>
+  <section class="feature-grid">
+    <article>
+      <span class="step-number">01 / UNEARTH</span>
+      <h2>Find the forgotten gems.</h2>
+      <p>
+        Choose the repositories you want to revisit. Public or explicitly connected private projects, all in your own workspace.
+      </p>
+    </article>
+    <article>
+      <span class="step-number">02 / UNDERSTAND</span>
+      <h2>Evidence over guesswork.</h2>
+      <p>
+        Get a clear account of what each project does, its condition, technical debt, and what remains uncertain.
+      </p>
+    </article>
+    <article>
+      <span class="step-number">03 / RESURRECT</span>
+      <h2>Make the next move.</h2>
+      <p>
+        Turn promising work into a prioritized queue, with concrete next steps and a portfolio angle worth pursuing.
+      </p>
+    </article>
+  </section>
+{% endblock %}

@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% load reaper_tags %}
+{% block title %}Repositories · Repo Reaper{% endblock %}
+{% block breadcrumb %}Repositories{% endblock %}
+{% block content %}
+  <div class="page-heading">
+    <div>
+      <div class="eyebrow">CHOOSE YOUR NEXT EXCAVATION</div>
+      <h1>
+        Let’s dig a little deeper<span class="accent">.</span>
+      </h1>
+      <p>Select the repositories you want to understand. Nothing is scanned automatically.</p>
+    </div>
+    <a class="button secondary" href="{% url 'settings' %}">Connection settings ↗</a>
+  </div>
+  {% if not ai_key_configured %}
+    <div class="notice warning">
+      Add <a href="{% url 'settings' %}">your OpenAI API key in Settings</a> before scanning. OpenAI bills your project directly.
+    </div>
+  {% elif not user.ai_consent %}
+    <div class="message">
+      Before your first scan, <a href="{% url 'settings' %}">enable AI analysis in Settings</a>. Selected metadata and file excerpts will be sent to the AI provider.
+    </div>
+  {% endif %}
+  {% if not user.allow_private %}
+    <div class="info-strip">
+      ◈ Public repositories only. Private access requires installation permission and an explicit opt-in in Settings.
+    </div>
+  {% endif %}
+  {% if error %}
+    <div class="message error">{{ error }}</div>
+  {% endif %}
+  <form class="filters" method="get">
+    <div class="filter-main">
+      <input type="hidden" name="page" value="{{ page_number|default:1 }}"><label class="search"><span>⌕</span><input name="q"
+       value="{{ filters.q }}"
+       placeholder="Search this page of repositories…"
+       aria-label="Search repositories"></label><select name="language" aria-label="Language"><option value="">All languages</option>{% for lang in languages %}
+      <option {% if filters.language == lang %}selected{% endif %}>{{ lang }}</option>{% endfor %}
+    </select><select name="visibility" aria-label="Visibility"><option value="">All visibility</option><option value="public"
+        {% if filters.visibility == 'public' %}selected{% endif %}>Public</option><option value="private"
+        {% if filters.visibility == 'private' %}selected{% endif %}>Private</option></select><select name="archived" aria-label="Archived"><option value="">All activity</option><option value="yes" {% if filters.archived == 'yes' %}selected{% endif %}>Archived</option><option value="no" {% if filters.archived == 'no' %}selected{% endif %}>Not archived</option></select><button class="button secondary compact">Filter</button>
+  </div>
+</form>
+<form method="post"
+      action="{% url 'import_repositories' %}"
+      id="repository-selection">
+  {% csrf_token %}
+  <div class="selection-toolbar">
+    <div>
+      <button type="button" class="text-button" id="select-all">Select all on page</button>
+      <span class="subtle">/</span>
+      <button type="button" class="text-button" id="deselect-all">Deselect all</button>
+    </div>
+    <span id="selection-count" aria-live="polite">0 selected · maximum 20 per scan</span><button class="button primary compact">Scan selected ↗</button>
+  </div>
+  <div class="discovery-grid">
+    {% for repo in repos %}
+      <label class="discovery-card">
+        <input type="checkbox" name="repositories" value="{{ repo.id }}">
+        <div>
+          <div class="card-topline">
+            <strong>{{ repo.name }}</strong><span class="visibility">{% if repo.private %}Private{% else %}Public{% endif %}</span>
+          </div>
+          <span class="repo-owner">{{ repo.owner.login }}</span>
+          <p>
+            {{ repo.description|default:'No description. A little mystery to investigate.'|truncatechars:180 }}
+          </p>
+          <div class="card-meta">
+            <span>{{ repo.language|default:'No language detected' }}</span><span>☆ {{ repo.stargazers_count }}</span>{% if repo.fork %}
+            <span>Fork</span>{% endif %}
+          {% if repo.archived %}
+            <span>Archived</span>{% endif %}
+        </div>
+        <small>Branch: {{ repo.default_branch }} · Pushed {{ repo.pushed_at|slice:':10'|default:'Never' }}</small>
+      </div>
+    </label>
+  {% empty %}
+    <div class="empty-state panel">
+      <span class="large-symbol">⌘</span>
+      <h2>No repositories to show.</h2>
+      <p>Check your connection, installation permissions, or filters.</p>
+      {% if github_install_url %}
+        <a class="button secondary"
+           href="{{ github_install_url }}"
+           target="_blank"
+           rel="noopener noreferrer">Manage GitHub access ↗</a>{% endif %}
+    </div>
+  {% endfor %}
+</div>
+</form>
+<div class="pagination">
+  {% if previous_page %}
+    <a href="?{% querystring page=previous_page %}">← Previous page</a>{% endif %}
+  <span>GitHub page {{ page_number|default:1 }} · filters apply to this page</span>{% if next_page %}
+  <a href="?{% querystring page=next_page %}">Next 100 repositories →</a>{% endif %}
+</div>
+{% endblock %}
