@@ -23,7 +23,7 @@ jobs:
       - name: Derive lowercase image name
         id: image
         shell: bash
-        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/repo-reaper-app" >> "$GITHUB_OUTPUT"
 
       - uses: docker/setup-buildx-action@v3
 
