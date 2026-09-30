@@ -1,16 +1,58 @@
 import os
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import dj_database_url
-from django.core.exceptions import ImproperlyConfigured
+from django.core.exceptions import ImproperlyConfigured, ValidationError
+from django.core.validators import URLValidator
+from django.http.request import split_domain_port
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
-DEBUG = os.getenv("REAPER_DEBUG", "false").lower() == "true"
+
+
+def env_list(name, default):
+    return [value.strip() for value in os.getenv(name, default).split(",") if value.strip()]
+
+
+def origin(value, name):
+    value = value.strip()
+    try:
+        URLValidator(schemes=["http", "https"])(value)
+        parts = urlsplit(value)
+        if (
+            parts.path not in ("", "/")
+            or parts.query
+            or parts.fragment
+            or parts.username is not None
+            or parts.password is not None
+            or "?" in value
+            or "#" in value
+        ):
+            raise ValueError
+    except (ValidationError, ValueError):
+        raise ImproperlyConfigured(
+            f"{name} must contain HTTP(S) origins without paths or credentials."
+        ) from None
+    return f"{parts.scheme}://{parts.netloc.lower()}"
+
+
+DEBUG = os.getenv("REAPER_DEBUG", "false").strip().lower() == "true"
 SECRET_KEY = os.getenv("SECRET_KEY", "development-only-not-for-production")
-APP_URL = os.getenv("APP_URL", "http://localhost:8000").rstrip("/")
-ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1,testserver").split(",")
+APP_URL = origin(os.getenv("APP_URL", "http://localhost:8000"), "APP_URL")
+APP_HOST = urlsplit(APP_URL).hostname
+ALLOWED_HOSTS = env_list(
+    "ALLOWED_HOSTS", f"{APP_HOST},localhost,127.0.0.1,testserver" if DEBUG else APP_HOST
+)
+for host in ALLOWED_HOSTS:
+    domain, port = split_domain_port(host.lstrip(".").lower())
+    if not domain or port:
+        raise ImproperlyConfigured(
+            "ALLOWED_HOSTS must contain hostnames without schemes, paths or ports."
+        )
+if not ALLOWED_HOSTS:
+    raise ImproperlyConfigured("ALLOWED_HOSTS must not be empty.")
 DATABASES = {
     "default": dj_database_url.config(
         default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}", conn_max_age=60
@@ -38,6 +80,7 @@ MIDDLEWARE = [
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
+    "reaper.middleware.OAuthDiagnosticsMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
@@ -68,17 +111,27 @@ AUTH_PASSWORD_VALIDATORS = [
 LOGIN_URL = "/login"
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"
+SESSION_COOKIE_DOMAIN = None
 SESSION_COOKIE_AGE = 60 * 60 * 24 * 14
 SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
-CSRF_TRUSTED_ORIGINS = [APP_URL]
+CSRF_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_DOMAIN = None
+CSRF_TRUSTED_ORIGINS = [
+    origin(value, "CSRF_TRUSTED_ORIGINS") for value in env_list("CSRF_TRUSTED_ORIGINS", APP_URL)
+]
 SECURE_SSL_REDIRECT = not DEBUG
 SECURE_HSTS_SECONDS = 31536000 if not DEBUG else 0
 SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG
 SECURE_HSTS_PRELOAD = not DEBUG
 # Only enable when the reverse proxy strips client-supplied forwarded headers.
-if os.getenv("TRUST_PROXY", "false").lower() == "true":
-    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+SECURE_PROXY_SSL_HEADER = (
+    ("HTTP_X_FORWARDED_PROTO", "https")
+    if os.getenv("TRUST_PROXY", "false").strip().lower() == "true"
+    else None
+)
+# Preserve the public Host at the proxy; never trust arbitrary X-Forwarded-Host.
+USE_X_FORWARDED_HOST = False
 SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = "DENY"
 STATIC_URL = "/static/"
@@ -100,6 +153,7 @@ LOGGING = {
     "loggers": {
         "httpx": {"level": "WARNING"},
         "httpcore": {"level": "WARNING"},
+        "reaper.oauth": {"handlers": ["console"], "level": "INFO", "propagate": False},
         "django.request": {"handlers": [], "propagate": False},
     },
 }

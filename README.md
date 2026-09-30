@@ -1,111 +1,419 @@
-# Repo Reaper
+# 💀 Repo Reaper
 
-**Good code deserves a second life.** A private, multi-user GitHub portfolio audit application. Discover repositories, select what to scan, inspect evidence-backed AI assessments, and prioritize promising projects in a Resurrection Queue. The application never writes to a GitHub repository.
+> **Your GitHub is full of corpses. Let’s see which ones are worth resurrecting.**
 
-Built with Django 5.2 LTS, PostgreSQL, server-rendered HTML/CSS, a durable database job queue, and an interchangeable AI provider interface. No Node build or Redis service is needed.
+Repo Reaper digs through your GitHub history, exhumes forgotten projects, and figures out which ones deserve another shot at life.
 
-## Run locally
+Connect GitHub, scan your repositories, and get a high-level view of what you've built, what's rotting, what needs a little work, and what should probably be left in the ground.
 
-Requires Python 3.13. PostgreSQL 16+ is recommended; SQLite works for single-process development and fast tests only.
+Because somewhere between **“weekend experiment”** and **“I'll finish this later”**, things got out of hand.
 
-```sh
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements-dev.lock
-cp .env.example .env
-python -c "import secrets; print(secrets.token_urlsafe(64))"
-python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
-```
+---
 
-Put the generated values into `SECRET_KEY` and `TOKEN_ENCRYPTION_KEYS` in `.env`. Configure the GitHub App below. Keep `REAPER_DEBUG=true` for localhost. Then:
+## 📸 Screenshots
 
-```sh
-python manage.py migrate
-python manage.py runserver
-```
+Click a screenshot to view it at full size.
 
-In another terminal, with the same environment:
+<p align="center">
+  <a href="docs/screenshots/project-landscape.webp">
+    <img
+      src="docs/screenshots/project-landscape-thumb.webp"
+      alt="Repo Reaper project landscape with portfolio metrics and repository inventory"
+      width="640"
+    />
+  </a>
+</p>
 
-```sh
-source .venv/bin/activate
-python manage.py scanworker
-```
+<p align="center">
+  <a href="docs/screenshots/repository-graveyard.webp">
+    <img
+      src="docs/screenshots/repository-graveyard-thumb.webp"
+      alt="Repo Reaper repository graveyard with project assessments and suggested next steps"
+      width="640"
+    />
+  </a>
+</p>
 
-Visit **http://localhost:8000**. Sign in, open **Settings & privacy**, add your own OpenAI API key, give AI consent, then choose repositories to scan. The key is encrypted at rest, used server-side, and billed to the user's OpenAI project; the operator does not supply a shared AI key. Use a dedicated OpenAI project with a spending limit and expiring project key. Missing credentials produce setup guidance rather than fabricated analyses.
+<p align="center">
+  <a href="docs/screenshots/project-audit.webp">
+    <img
+      src="docs/screenshots/project-audit-thumb.webp"
+      alt="Repo Reaper project audit showing current condition, technical debt, and a resurrection plan"
+      width="640"
+    />
+  </a>
+</p>
 
-## GitHub App setup (read-only private access)
+<p align="center">
+  <a href="docs/screenshots/resurrection-queue.webp">
+    <img
+      src="docs/screenshots/resurrection-queue-thumb.webp"
+      alt="Repo Reaper resurrection queue with project priorities and notes"
+      width="640"
+    />
+  </a>
+</p>
 
-A classic OAuth App cannot offer private repository access without the broad `repo` scope, which includes writes. Repo Reaper therefore uses a **GitHub App's user OAuth flow** with fine-grained read-only permissions.
+---
 
-1. In GitHub developer settings, register a GitHub App. Use the application URL as the homepage.
-2. Set the user authorization callback to `http://localhost:8000/auth/github/callback` locally, or `https://your-domain/auth/github/callback` in production.
-3. Enable expiring user access tokens. Disable device flow and webhooks; neither is needed.
-4. Grant **Repository permissions → Contents: Read-only** and **Metadata: Read-only**. Optionally grant **Issues: Read-only** to inspect issue titles. Grant **no write permissions**, no organization permissions, and no account permissions.
-5. Leave “Request user authorization (OAuth) during installation” disabled. Users begin the state-protected authorization flow in the application. After installing the app, return to Repo Reaper and sign in/reconnect.
-6. Set `GITHUB_CLIENT_ID` to the App's **client ID**, not numeric App ID. Set its client secret and `GITHUB_APP_SLUG` in `.env`. No app private key is necessary because the scanner uses user access tokens, not installation tokens.
-7. Users can authorize public access without granting private content access. To scan private repositories, they install the app for selected repositories and separately enable private access in Repo Reaper Settings. Organization policy may require approval.
+## ⚰️ Welcome to the Graveyard
 
-GitHub token scopes are deliberately omitted. Tokens with classic OAuth scopes are rejected. The app registration itself is the permission boundary: operators must preserve the read-only configuration. Tokens are encrypted and stay on the server. PKCE and expiring, single-use OAuth state protect sign-in.
+Developers accumulate repositories.
 
-## What is implemented
+A lot of repositories.
 
-- Landing, login, dashboard, repository selection, repository detail, Graveyard, queue, and settings pages.
-- Responsive dark/light UI; expandable table rows; text, status, language, framework, effort, value, visibility and archive filters; sorting and dashboard pagination.
-- GitHub identity by numeric ID, persistent sessions, encrypted rotating GitHub and per-user OpenAI credentials, explicit private access and AI consent.
-- Paginated discovery (100 repositories/page; filters and select-all operate on the current page). Selection is capped at 20 repositories per submission.
-- Background jobs with progress polling, quotas, active-job deduplication, row locks, lease recovery and stale-worker fencing.
-- Bounded inspection of metadata, languages, immutable commit trees, README, manifests, test/CI/deployment configuration, representative source, recent commits, release metadata and optional issue titles. Lockfile presence is recorded; giant/non-text/generated/secret-looking files are skipped.
-- Structured AI result validation, fixed status/effort/value enums, confidence, uncertainty, evidence references, technical debt, portfolio angle and concrete next steps.
-- Per-user, per-repository evidence hash/version/model caching, token usage, scan history and field-level comparisons.
-- Individual/all-analysis deletion, disconnect/revocation attempt, account deletion and safe cancellation.
-- PostgreSQL composite foreign keys plus tenant-scoped application authorization. No public sharing routes.
+Some are abandoned prototypes.  
+Some are 80% finished.  
+Some just need their dependencies updated.  
+Some contain genuinely good ideas buried under five years of technical debt.
 
-## Tests and checks
+And some...
 
-```sh
-pytest -q
-ruff check .
-djlint templates --check
-ruff format --check config reaper tests manage.py
-python manage.py makemigrations --check --dry-run
-python manage.py check
-playwright install chromium
-pytest -q -m browser
-```
+...need to stay dead.
 
-Use a dedicated PostgreSQL database to exercise composite foreign keys and concurrent worker tests:
+**Repo Reaper helps tell the difference.**
 
-```sh
-DATABASE_URL=postgresql://user:password@localhost:5432/reaper_test_source pytest -q
-```
+Instead of manually digging through dozens—or hundreds—of repositories, Repo Reaper analyzes your GitHub portfolio and turns the mess into something actionable.
 
-The test role must be allowed to create a temporary `test_*` database. Run the browser suite and main suite sequentially; both create and remove that database. Tests mock GitHub and AI responses; no live credentials or billed requests are required. Browser tests authenticate through test fixtures, never a production bypass, and save screenshots under ignored `artifacts/`.
+---
 
-CI runs PostgreSQL-backed tests, migration checks, formatting, static collection, and real Chromium interactions. The critical suite checks that User A cannot read, rescan, delete, queue, import, or poll User B's data.
+## 🔥 What Repo Reaper Does
 
-## Project layout
+### 🪦 Repository Graveyard
+
+Connect your GitHub account and get a centralized view of your repositories and their current condition.
+
+Quickly surface things like:
+
+- abandoned projects
+- recently active projects
+- unfinished experiments
+- aging technology
+- missing documentation
+- stale dependencies
+- incomplete applications
+- projects with resurrection potential
+
+Your GitHub graveyard finally has a map.
+
+---
+
+### 🧠 AI-Assisted Repository Analysis
+
+Repo Reaper doesn't just ask:
+
+> When was this repository last updated?
+
+It tries to answer:
+
+> **Is this thing actually worth working on again?**
+
+Repository analysis can surface signals around:
+
+- project purpose
+- completeness
+- codebase condition
+- maintainability
+- documentation quality
+- technical debt
+- modernization opportunities
+- dependency health
+- project momentum
+- remaining work
+
+The result is a much better answer than:
+
+**“Last commit: 4 years ago.”**
+
+---
+
+### 🧟 Resurrection Candidates
+
+Some dead projects aren't dead.
+
+They're sleeping.
+
+Repo Reaper identifies repositories that appear close enough to useful, interesting enough to revisit, or valuable enough to justify another round of development.
+
+Think:
 
 ```text
-config/                    Django settings, routes, WSGI
-reaper/models.py           Tenant-owned entities and indexes
-reaper/migrations/         Schema and PostgreSQL tenant constraints
-reaper/services/github.py  OAuth exchange, refresh, bounded API client, ETags
-reaper/services/evidence.py Selective evidence and redaction
-reaper/services/analysis.py Provider protocol, schema, OpenAI implementation
-reaper/services/jobs.py     Durable jobs, quotas, caching, persistence
-reaper/views.py             Session-scoped pages and actions
-reaper/management/commands/ Worker and operational maintenance
-static/                    CSS, progressive-enhancement JavaScript
-templates/                Server-rendered application pages
-tests/                    Security, lifecycle, integration, browser tests
+PROJECT: old-dashboard
+STATUS: ☠️ Dormant
+CONDITION: Surprisingly intact
+
+Resurrection Potential: HIGH
+
+Suggested revival:
+  1. Upgrade dependencies
+  2. Repair authentication
+  3. Clean up deployment config
+  4. Add missing documentation
+  5. Ship the damn thing
 ```
 
-See [architecture and threat model](docs/architecture.md), [deployment instructions](docs/deployment.md), and [security notes](docs/security.md).
+---
 
-## Boundaries and deployment status
+### ⚡ Resurrection Queue
 
-Source inspection is an evidence sample, not a full static analyzer, dependency vulnerability feed, or deployment verification. “Meaningful commit” uses an explicitly labeled recent-message heuristic. AI findings require engineering judgment. Scan records retain the evidence inventory and metadata, not file excerpts; encrypted API caches can temporarily retain excerpts until pruning. Analyses may themselves contain sensitive project information.
+Found something worth saving?
 
-Public portfolio publication is intentionally absent. A future implementation must use separate explicit publication records, curated fields, private-repository confirmation, and dedicated authorization tests.
+Throw it into the **Resurrection Queue**.
 
-This repository contains deployable application code and automated validation. Actual GitHub OAuth/private-installation behavior and paid model calls must be smoke-tested with a user-supplied credential before a public launch. Infrastructure deployment, DNS, backup retention, and independent security review remain operator responsibilities. Each user controls their own provider billing limits. See the deployment runbook for the exact sequence.
+Instead of staring at 87 repositories wondering what to work on, build a shortlist of projects actually worth your time.
+
+```text
+THE RESURRECTION QUEUE
+
+01  █████████░  Shipwreck
+02  ████████░░  Old Portfolio
+03  ███████░░░  Music Visualizer
+04  █████░░░░░  Random API Thing
+
+NEXT SACRIFICE → ???
+```
+
+---
+
+### 🪦 LET IT DIE
+
+Not every project deserves a redemption arc.
+
+Some repositories are:
+
+- obsolete
+- redundant
+- fundamentally unfinished
+- based on ideas you no longer care about
+- more expensive to repair than rebuild
+- held together by dependencies last updated during the Obama administration
+
+Repo Reaper gives those projects the dignity they deserve.
+
+```text
+┌─────────────────────────────────────┐
+│                                     │
+│             LET IT DIE              │
+│                                     │
+│   There is nothing left to save.    │
+│                                     │
+└─────────────────────────────────────┘
+```
+
+Closure is a feature.
+
+---
+
+## 🔍 The Reaping Process
+
+```text
+               ┌──────────────┐
+               │    GitHub    │
+               └──────┬───────┘
+                      │
+                      ▼
+              ┌───────────────┐
+              │  Repo Reaper  │
+              └───────┬───────┘
+                      │
+          ┌───────────┼───────────┐
+          ▼           ▼           ▼
+      Repository   Project      Technical
+       Signals     Context        Health
+          │           │           │
+          └───────────┼───────────┘
+                      ▼
+               AI-Assisted
+                 Analysis
+                      │
+        ┌─────────────┼─────────────┐
+        ▼             ▼             ▼
+     RESURRECT      REPAIR       LET IT DIE
+```
+
+Repo Reaper combines repository metadata and codebase signals to build a clearer picture of each project's condition.
+
+---
+
+## 🩻 What Gets Examined?
+
+Depending on the repository, Repo Reaper can evaluate signals such as:
+
+| Signal                  | Why it matters                                       |
+| ----------------------- | ---------------------------------------------------- |
+| 🕒 Last Activity        | How long the project has been dormant                |
+| 🧱 Project Structure    | Whether there's a real application hiding in there   |
+| 📦 Dependencies         | How much modernization may be required               |
+| 📚 Documentation        | Whether future-you left present-you any instructions |
+| 🧪 Project Completeness | Prototype, partial build, or nearly shippable        |
+| 🛠️ Maintenance Burden   | How painful resurrection could become                |
+| 🧠 Project Purpose      | What the hell this thing was supposed to do          |
+| 🚀 Revival Potential    | Whether additional effort may actually be worthwhile |
+
+Individual signals aren't the verdict.
+
+The goal is to combine them into enough context to make the repository understandable again.
+
+---
+
+## 👻 Built for Project Archaeology
+
+Repo Reaper is especially useful if you:
+
+- build a ridiculous number of side projects
+- frequently prototype new ideas
+- have years of abandoned GitHub repositories
+- can't remember what half your repos do
+- want to clean up your public GitHub
+- want to find forgotten portfolio projects
+- keep saying **“I should finish that someday”**
+- enjoy discovering code written by a mysterious developer who somehow has your name
+
+That mysterious developer was you.
+
+Three years ago.
+
+At 2:14 AM.
+
+---
+
+## 🔐 GitHub Access
+
+Repo Reaper uses GitHub authentication to analyze repositories associated with your account.
+
+The application is designed around **read-only repository analysis**.
+
+It does not need to start rewriting your projects, force-pushing branches, or wandering around your GitHub account with a loaded shotgun.
+
+Your repositories remain yours.
+
+Repo Reaper is there to inspect the graveyard—not vandalize it.
+
+---
+
+## 📊 Scan History
+
+Projects change.
+
+Repo Reaper can preserve scan results so repository health isn't just a single snapshot.
+
+That opens the door to tracking things like:
+
+```text
+SCAN #12
+
+Technical Debt        ███████░░░
+Documentation         ████████░░
+Completeness          █████████░
+Resurrection Score    █████████░
+
+↑ +18% since previous scan
+
+THE CORPSE IS MOVING.
+```
+
+Seeing a project improve is much more useful than repeatedly analyzing it from scratch.
+
+---
+
+## 🎯 The Goal
+
+Repo Reaper isn't trying to generate another GitHub dashboard full of stars, forks, and contribution counts.
+
+GitHub already does that.
+
+The question Repo Reaper cares about is different:
+
+> **Out of everything I've ever built, what deserves my attention now?**
+
+That's the entire idea.
+
+Turn years of abandoned experiments into a searchable, understandable project inventory—and occasionally discover that something you thought was dead is actually one good weekend away from shipping.
+
+---
+
+## 🧪 Project Status
+
+Repo Reaper is actively evolving.
+
+Current areas of focus include:
+
+- deeper repository analysis
+- better resurrection recommendations
+- repository health history
+- scan-to-scan comparisons
+- modernization detection
+- dependency and runtime analysis
+- stronger project categorization
+- richer portfolio-level insights
+- better explanations for _why_ a project received its assessment
+
+And, naturally:
+
+**more elaborate methods of determining whether your terrible 2019 side project deserves another chance.**
+
+---
+
+## 🗺️ Future Ideas
+
+Some things lurking deeper in the graveyard:
+
+- **Dependency Graveyard** — surface ancient and dangerous dependencies across projects
+- **Project Necromancer** — generate actionable resurrection plans
+- **Portfolio Health** — analyze an entire GitHub account as one engineering portfolio
+- **Project Similarity** — discover three repositories that were secretly attempts at building the same thing
+- **Resurrection Tracking** — watch projects move from abandoned → repaired → shipped
+- **Automated Cleanup Suggestions** — identify projects that could be archived with confidence
+- **Historical Diffing** — show exactly how a repository's health changed between scans
+
+The graveyard can always get deeper.
+
+---
+
+## 🤝 Contributing
+
+Found a bug?
+
+Have an idea?
+
+Think Repo Reaper incorrectly sentenced one of your beautiful creations to eternal damnation?
+
+Open an issue or submit a pull request.
+
+Contributions, feature ideas, weird repository edge cases, and sufficiently tasteful graveyard jokes are welcome.
+
+---
+
+## ⚠️ Disclaimer
+
+Repo Reaper provides analysis and recommendations based on the information available in a repository.
+
+It cannot determine whether your abandoned side project will become a billion-dollar startup.
+
+Unfortunately.
+
+---
+
+## 💀 Final Words
+
+Every developer eventually builds a graveyard.
+
+Repo Reaper just turns on the lights.
+
+```text
+$ repo-reaper
+
+Scanning graveyard...
+
+47 repositories found.
+19 dormant.
+11 questionable.
+6 promising.
+3 should never have existed.
+
+Resurrection candidates located.
+
+LET'S DIG.
+```
+
+**Dig up the past. Find what's worth saving. Ship something.**

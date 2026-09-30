@@ -1,6 +1,7 @@
 import base64
 import hashlib
 import json
+import logging
 import secrets
 import time
 from collections import Counter
@@ -16,8 +17,9 @@ from django.db import transaction
 from django.db.models import Prefetch
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
-from django.views.decorators.http import require_GET, require_POST
+from django.views.decorators.http import require_GET, require_POST, require_http_methods
 
 from reaper.models import (
     ACTIVE_STATES,
@@ -34,6 +36,13 @@ from reaper.services.github import GitHub, repository_fields, revoke, save_token
 from reaper.services.jobs import enqueue
 from reaper.services.security import ServiceError, decrypt, encrypt, rate_limit
 
+oauth_logger = logging.getLogger("reaper.oauth")
+
+
+def oauth_callback_uri():
+    # One canonical public origin for authorization and token exchange, independent of proxy hosts.
+    return settings.APP_URL + reverse("oauth_callback")
+
 
 def landing(request):
     return render(request, "reaper/landing.html")
@@ -45,7 +54,7 @@ def login(request):
     return render(request, "reaper/login.html")
 
 
-@require_POST
+@require_http_methods(["GET", "POST"])
 @rate_limit("oauth", 10, 300)
 def oauth_start(request):
     if not settings.GITHUB_CLIENT_ID or not settings.GITHUB_CLIENT_SECRET:
@@ -60,7 +69,7 @@ def oauth_start(request):
     )
     params = {
         "client_id": settings.GITHUB_CLIENT_ID,
-        "redirect_uri": settings.APP_URL + "/auth/github/callback",
+        "redirect_uri": oauth_callback_uri(),
         "state": state,
         "code_challenge": challenge,
         "code_challenge_method": "S256",
@@ -79,6 +88,7 @@ def oauth_callback(request):
         or not request.GET.get("code")
         or request.GET.get("error")
     ):
+        oauth_logger.info("oauth_callback rejected_state_or_provider_denial")
         messages.error(request, "GitHub sign-in expired or was declined. Please try again.")
         return redirect("login")
     try:
@@ -86,7 +96,7 @@ def oauth_callback(request):
             {
                 "code": request.GET["code"],
                 "code_verifier": pending["verifier"],
-                "redirect_uri": settings.APP_URL + "/auth/github/callback",
+                "redirect_uri": oauth_callback_uri(),
             }
         )
         profile = GitHub(token=data["access_token"]).get("/user")
@@ -112,8 +122,10 @@ def oauth_callback(request):
             save_tokens(account, data)
             GitHubCache.objects.filter(user=user).delete()
         auth_login(request, user, backend="django.contrib.auth.backends.ModelBackend")
+        oauth_logger.info("oauth_callback authenticated")
         return redirect("dashboard")
     except (ServiceError, KeyError, ValueError):
+        oauth_logger.warning("oauth_callback exchange_or_identity_failed")
         messages.error(
             request,
             "GitHub sign-in could not be completed. Check the app configuration and try again.",

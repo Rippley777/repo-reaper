@@ -6,7 +6,7 @@ Run one web service, one or more workers, and PostgreSQL 16+. Serve through a tr
 ## Container deployment
 1. Create `.env` from `.env.example`; generate independent `SECRET_KEY` and Fernet keys. Set a long alphanumeric `POSTGRES_PASSWORD` (or URL-encode special characters in a manually configured database URL).
 2. Configure the GitHub App as described in README and set the production callback exactly. Set the `AI_MODELS` allowlist. Users supply their own OpenAI API keys in Settings; no operator OpenAI key is required.
-3. Set `REAPER_DEBUG=false`, `APP_URL=https://your-domain`, and `ALLOWED_HOSTS=your-domain`. Keep secrets in your hosting platform's secret manager where possible.
+3. Set `REAPER_DEBUG=false`, `APP_URL=https://your-domain`, `ALLOWED_HOSTS=your-domain`, and `CSRF_TRUSTED_ORIGINS=https://your-domain` (defaults to `APP_URL` if omitted). Hosts and origins accept comma-separated values with surrounding whitespace removed and empty entries ignored. Origins must not contain paths, credentials, query strings or fragments. Keep secrets in your hosting platform's secret manager where possible.
 4. If the reverse proxy strips inbound `X-Forwarded-Proto` and sets its own trusted value, set `TRUST_PROXY=true`. Do not enable it when clients can directly reach the web container.
 5. Build, start PostgreSQL, apply migrations once, then start application processes:
 
@@ -31,6 +31,76 @@ your-domain.example {
 ```
 
 Caddy manages HTTPS certificates. Configure it to prevent inbound forwarded-header spoofing. Do not enable access logs that include OAuth callback query strings. Application Gunicorn access logging is disabled by default to avoid code/state URLs in logs. Apply the same rule at load balancers, tracing, and error reporting.
+
+## Azure Container Apps and Cloudflare
+
+### Diagnosed configuration (2026-09-29)
+
+Read-only Azure inspection found `repo-reaper-web` in resource group `repo-reaper`, using HTTP ingress on port 8000 with `allowInsecure=false`, image `ghcr.io/rippley777/repo-reaper-app:sha-bf51517`, and no custom-domain binding. Both `APP_URL` and `ALLOWED_HOSTS` were set to `repo-reaper-web.wittyisland-9a5621a8.southcentralus.azurecontainerapps.io` (with `https://` on `APP_URL`). `TRUST_PROXY=true` was already enabled. No `CSRF_TRUSTED_ORIGINS` environment variable was configured; the old code ignored that variable and trusted only `APP_URL`.
+
+Consequently, when a proxy forwards the Azure Host while the browser posts from `https://reporeaper.oddware.dev`, Django rejects the public Origin even with a valid CSRF cookie/token. The old authorization and token exchange also send GitHub the Azure callback. A preserved public Host would instead fail `ALLOWED_HOSTS`. A true GET in the original code returns 405, not a Django CSRF 403; the login form performed a POST. These are separate from Cloudflare's error 1010, which blocked automated checks through the public domain during diagnosis. Cloudflare routing configuration and GitHub registration were not available for inspection.
+
+### Environment and ingress
+
+Deploy the updated image and configure these values on the web container (and matching app settings on workers):
+
+```dotenv
+REAPER_DEBUG=false
+APP_URL=https://reporeaper.oddware.dev
+ALLOWED_HOSTS=reporeaper.oddware.dev,repo-reaper-web.wittyisland-9a5621a8.southcentralus.azurecontainerapps.io
+CSRF_TRUSTED_ORIGINS=https://reporeaper.oddware.dev
+TRUST_PROXY=true
+```
+
+The explicit Azure host supports the existing origin routing while it is inspected/migrated. It does not influence the canonical OAuth callback. If Cloudflare preserves the public Host and no health probe or origin request needs the Azure host, reduce `ALLOWED_HOSTS` to `reporeaper.oddware.dev`. Never add Azure URLs to the public `APP_URL` or public GitHub callback. Keep the existing secrets, encryption keys, database and GitHub credentials; changing `SECRET_KEY` would invalidate sessions.
+
+This is **Azure Container Apps**, not App Service: no `WEBSITES_PORT` or App Service authentication setting is needed. Keep ingress target port 8000, HTTP transport, and `allowInsecure=false`. Azure's [HTTP ingress documentation](https://learn.microsoft.com/en-us/azure/container-apps/ingress-overview#http-headers) states that ingress overwrites client-provided `X-Forwarded-Proto`. That makes the existing `TRUST_PROXY=true` appropriate here, setting `SECURE_PROXY_SSL_HEADER=("HTTP_X_FORWARDED_PROTO", "https")`. Do not expose the container directly around this ingress. [Django requires the proxy to sanitize this header](https://docs.djangoproject.com/en/5.2/ref/settings/#secure-proxy-ssl-header).
+
+`USE_X_FORWARDED_HOST=False` is intentional: Azure does not document an equivalent trust guarantee for that header. Prefer preserving the actual public `Host`:
+
+- For proxied DNS/CNAME routing, bind `reporeaper.oddware.dev` and a matching certificate in Azure Container Apps first. No such binding existed at inspection time. Preserve that Host through Cloudflare.
+- If an existing Cloudflare Worker fetches the Azure origin URL, the explicit Azure allowed host above accommodates that upstream Host. Forward browser cookies, Origin and Referer to the app and return Set-Cookie, Location and Cache-Control unchanged. The canonical `APP_URL` and explicit public CSRF origin make this configuration work without trusting arbitrary forwarded hosts. A custom-domain binding is needed if switching to direct routing with the public Host.
+
+Use Cloudflare [Full (strict) TLS](https://developers.cloudflare.com/ssl/origin-configuration/ssl-modes/full-strict/) with a valid origin certificate. A Worker must fetch the origin with `https://`. Flexible mode is incompatible with reliably preserving HTTPS through Azure ingress. Remove any redirect/response rewrite that exposes the Azure hostname. Bypass Cloudflare caching for `/login`, `/auth/*` and authenticated pages, and respect `Cache-Control: no-store, private` and Set-Cookie. Do not disable security checks site-wide to resolve the unrelated automated-client error 1010; inspect Cloudflare Security Events if real browsers also encounter it.
+
+`SECURE_SSL_REDIRECT=True`, `SESSION_COOKIE_SECURE=True`, `CSRF_COOKIE_SECURE=True`, both SameSite values `Lax`, and both cookie domains `None` apply in production. No `.oddware.dev` or Azure cookie domain is needed. Clear old site cookies once when verifying if a previous deployment used different cookie scopes.
+
+### Exact GitHub flow
+
+This is custom Django/httpx code using a **GitHub App user authorization flow**, not django-allauth, social-auth, Authlib or a classic GitHub OAuth App. Configure the GitHub App's user authorization callback to exactly:
+
+```text
+https://reporeaper.oddware.dev/auth/github/callback
+```
+
+There is no trailing slash. Set its homepage to `https://reporeaper.oddware.dev`. The registration itself must be checked in GitHub; repository code cannot verify its configured callback.
+
+1. GET `/auth/github` creates random state and an S256 PKCE verifier in the server-side session, then returns 302 to `https://github.com/login/oauth/authorize`. The callback URI is `APP_URL + reverse("oauth_callback")`. Existing POST clients remain CSRF protected.
+2. GitHub returns a top-level GET to `/auth/github/callback` with code/state. The Lax session cookie accompanies this navigation.
+3. Django consumes pending state once, checks state and its ten-minute expiry, then posts the code, verifier and **same callback URI** to `https://github.com/login/oauth/access_token` with the configured client credentials. It accepts only GitHub App user tokens.
+4. The app fetches `/user`, identifies/updates the user by numeric GitHub ID, rejects changing identities during reconnect, encrypts provider tokens, calls Django `auth_login` (rotating the session on initial sign-in), and returns a relative redirect to `/dashboard`.
+
+No query string, code, state, token, secret or session ID is included in the new OAuth diagnostics. Infrastructure access logging must also omit callback query strings.
+
+### Verification
+
+Run locally from the repository root:
+
+```sh
+.venv/bin/python -m pytest -q tests/test_proxy_auth.py tests/test_auth.py tests/test_security.py
+.venv/bin/python -m ruff check .
+.venv/bin/python -m djlint templates --check
+```
+
+The tests load production environment settings, simulate HTTP at the backend with `Host: reporeaper.oddware.dev` and `X-Forwarded-Proto: https`, verify the callback in authorization and token exchange, create/rotate the authenticated session with mocked GitHub responses, check cookie flags, reject replay and hostile origins, reproduce the original Azure/public-origin CSRF failure, and test its corrected configuration. `TRUST_PROXY=false` remains the safe default outside verified ingress. Ordinary localhost development uses `REAPER_DEBUG=true`, `APP_URL=http://localhost:8000` and the local callback.
+
+After deploying and updating GitHub/Azure/Cloudflare:
+
+1. Open a fresh browser session at `https://reporeaper.oddware.dev/auth/github`. Expect a single 302 to GitHub, not a 403, 405 or redirect loop. In browser developer tools, inspect the decoded `redirect_uri`: it must be exactly the public callback above. Do not copy or publish authorization query strings.
+2. Complete GitHub authorization. Expect the public callback and then `/dashboard` on the public domain, with an authenticated session. Verify reconnect, refresh and logout.
+3. Check cookies in browser storage: host `reporeaper.oddware.dev`, no Domain attribute, Secure, SameSite=Lax; session cookie also HttpOnly. Submit an ordinary settings form to verify CSRF-protected writes.
+4. Inspect `reaper.oauth` messages in Azure logs: scheme `https`, `is_secure=true`, public callback URI. Host should be public with direct custom-domain routing, or the explicitly allowed Azure origin with the documented Worker routing. The browser must never navigate to the Azure hostname. Django's CSRF logger retains rejection reasons without logging submitted tokens.
+5. Run `python manage.py check --deploy --fail-level WARNING` inside the deployed container. Confirm the intended image revision receives all ingress traffic.
 
 ## Non-container deployment
 Use Python 3.13 and install `requirements.txt`. Set the same production environment variables. Run migrations and `collectstatic`, then:

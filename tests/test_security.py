@@ -92,7 +92,6 @@ def test_mutations_reject_get(client, users, repos):
         "/settings/ai-key",
         "/settings/ai-key/delete",
         "/settings/privacy",
-        "/auth/github",
         "/logout",
     ]:
         assert client.get(path).status_code == 405

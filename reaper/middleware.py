@@ -1,3 +1,34 @@
+import json
+import logging
+
+from django.urls import reverse
+
+
+class OAuthDiagnosticsMiddleware:
+    """Log only routing metadata, including requests rejected by CSRF middleware."""
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        if request.path in (reverse("oauth_start"), reverse("oauth_callback")):
+            from reaper.views import oauth_callback_uri
+
+            metadata = {
+                "path": request.path,
+                "method": request.method,
+                "host": request.get_host(),
+                "is_secure": request.is_secure(),
+                "scheme": request.scheme,
+                "callback_uri": oauth_callback_uri(),
+            }
+            for header in ("HTTP_HOST", "HTTP_X_FORWARDED_HOST", "HTTP_X_FORWARDED_PROTO"):
+                metadata[header] = request.META.get(header, "")[:255]
+            # JSON escapes control characters; never include URLs with queries or cookie headers.
+            logging.getLogger("reaper.oauth").info("oauth_request %s", json.dumps(metadata))
+        return self.get_response(request)
+
+
 class SecurityHeadersMiddleware:
     def __init__(self, get_response):
         self.get_response = get_response

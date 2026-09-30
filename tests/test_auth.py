@@ -11,7 +11,7 @@ pytestmark = pytest.mark.django_db
 
 
 def start(client):
-    response = client.post("/auth/github")
+    response = client.get("/auth/github")
     assert response.status_code == 302
     return parse_qs(urlparse(response.url).query)
 
@@ -83,5 +83,5 @@ def test_login_uses_stable_numeric_id_encrypts_tokens_and_prevents_replay(client
 
 def test_oauth_rate_limit(client):
     for _ in range(10):
-        client.post("/auth/github")
-    assert client.post("/auth/github").status_code == 429
+        client.get("/auth/github")
+    assert client.get("/auth/github").status_code == 429

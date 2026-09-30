@@ -10,10 +10,8 @@
       you left off.
     </h1>
     <p>Sign in to find the potential hiding in your repositories.</p>
-    <form method="post" action="{% url 'oauth_start' %}">
-      {% csrf_token %}
-      <button class="button primary full">Continue with GitHub <span>↗</span></button>
-    </form>
+    <a class="button primary full"
+       href="{% url 'oauth_start' %}">Continue with GitHub <span>↗</span></a>
     {% if not github_configured %}
       <div class="message">
         GitHub sign-in is not configured yet. Follow the GitHub App setup in the project README.
