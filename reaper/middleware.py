@@ -2,6 +2,7 @@ import json
 import logging
 
 from django.urls import reverse
+from reaper.analytics import browser_analytics
 
 
 class OAuthDiagnosticsMiddleware:
@@ -35,8 +36,11 @@ class SecurityHeadersMiddleware:
 
     def __call__(self, request):
         response = self.get_response(request)
+        analytics = browser_analytics()
+        collector = f" {analytics['origin']}" if analytics else ""
         response["Content-Security-Policy"] = (
-            "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' https://avatars.githubusercontent.com; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+            "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' https://avatars.githubusercontent.com; "
+            f"connect-src 'self'{collector}; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
         )
         response["Referrer-Policy"] = "same-origin"
         response["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"

@@ -39,6 +39,10 @@ def origin(value, name):
 
 
 DEBUG = os.getenv("REAPER_DEBUG", "false").strip().lower() == "true"
+HOUSE_EDGE_ENABLED = os.getenv("HOUSE_EDGE_ENABLED", "false").strip().lower() == "true"
+HOUSE_EDGE_PROJECT = os.getenv("HOUSE_EDGE_PROJECT", "repo-reaper")
+HOUSE_EDGE_KEY = os.getenv("HOUSE_EDGE_KEY", "")
+HOUSE_EDGE_ENDPOINT = os.getenv("HOUSE_EDGE_ENDPOINT", "")
 SECRET_KEY = os.getenv("SECRET_KEY", "development-only-not-for-production")
 APP_URL = origin(os.getenv("APP_URL", "http://localhost:8000"), "APP_URL")
 APP_HOST = urlsplit(APP_URL).hostname

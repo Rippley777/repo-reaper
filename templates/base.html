@@ -7,6 +7,11 @@
     <link rel="icon" href="{% static 'favicon.svg' %}" type="image/svg+xml">
     <link rel="stylesheet" href="{% static 'app.css' %}">
     <script src="{% static 'app.js' %}" defer></script>
+    {% if house_edge %}
+      <script src="{% static 'vendor/house-edge-0.1.1.js' %}" defer
+              data-project="{{ house_edge.project }}" data-key="{{ house_edge.key }}"
+              data-endpoint="{{ house_edge.endpoint }}"></script>
+    {% endif %}
   </head>
   <body>
     <a class="skip" href="#main">Skip to content</a>
