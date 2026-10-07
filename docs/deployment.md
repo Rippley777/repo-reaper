@@ -102,6 +102,12 @@ After deploying and updating GitHub/Azure/Cloudflare:
 4. Inspect `reaper.oauth` messages in Azure logs: scheme `https`, `is_secure=true`, public callback URI. Host should be public with direct custom-domain routing, or the explicitly allowed Azure origin with the documented Worker routing. The browser must never navigate to the Azure hostname. Django's CSRF logger retains rejection reasons without logging submitted tokens.
 5. Run `python manage.py check --deploy --fail-level WARNING` inside the deployed container. Confirm the intended image revision receives all ingress traffic.
 
+### Scan worker in Azure Container Apps
+
+Deploy `repo-reaper-worker` as a **separate Container App** in `repo-reaper-env`. It uses the same image, database connection, encryption keys, GitHub App credentials and application settings as `repo-reaper-web`, with `python manage.py scanworker` as its command. Give it no ingress, set both minimum and maximum replicas to 1, and set `terminationGracePeriodSeconds` to 180. The worker's managed identity needs `AcrPull` on the private registry. Copy secrets into the worker's own Container App secret store; Azure Container App secrets are not shared between apps. Keep both apps' image tags and secrets synchronized during releases and credential rotation.
+
+Check that the worker has a running, ready replica with no restarts, then inspect the database queue. A successful `/health` response establishes web and database reachability only. Before declaring the whole application operational, verify that a real queued scan reaches `complete` and has a matching `RepositoryAnalysis` row. Investigate `failed` scans and worker logs; a queue that remains at `queued` while web health passes indicates the worker is absent or unable to claim jobs.
+
 ## Non-container deployment
 Use Python 3.13 and install `requirements.txt`. Set the same production environment variables. Run migrations and `collectstatic`, then:
 
